@@ -1,0 +1,126 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+env:
+  REGISTRY: docker.io
+  IMAGE_PREFIX: learning-platform
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build Auth Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/auth_service
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-auth-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build Course Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/course_service
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-course-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build Learning Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/learning_service
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-learning-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build API Gateway
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/api_gateway
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-api-gateway:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build Frontend Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/frontend_service
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-frontend-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run Docker Compose Tests
+      run: |
+        docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+      continue-on-error: true
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint
+
+    - name: Lint Python files
+      run: |
+        find services -name "*.py" -exec flake8 {} \; || true
+        find services -name "*.py" -exec pylint {} \; || true
+      continue-on-error: true
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
+

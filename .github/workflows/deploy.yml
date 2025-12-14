@@ -1,0 +1,108 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: docker.io
+  IMAGE_PREFIX: learning-platform
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract version
+      id: version
+      run: |
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION=${GITHUB_SHA::8}
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Build and push Auth Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/auth_service
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-auth-service:${{ steps.version.outputs.tag }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-auth-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push Course Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/course_service
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-course-service:${{ steps.version.outputs.tag }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-course-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push Learning Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/learning_service
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-learning-service:${{ steps.version.outputs.tag }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-learning-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push API Gateway
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/api_gateway
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-api-gateway:${{ steps.version.outputs.tag }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-api-gateway:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push Frontend Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./services/frontend_service
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-frontend-service:${{ steps.version.outputs.tag }}
+          ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_PREFIX }}-frontend-service:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          docker-compose.swarm.yml
+          COMMANDS.md
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

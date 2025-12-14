@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # Auth Service (Backend)
+  auth-service:
+    build:
+      context: ./services/auth_service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "5001:5001"
+    environment:
+      - DATABASE_URL=sqlite:///data/auth.db
+      - JWT_SECRET=jwt-secret-key-change-in-production
+      - PORT=5001
+    volumes:
+      - auth_db:/app/data
+    networks:
+      - learning-platform-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Course Service (Backend)
+  course-service:
+    build:
+      context: ./services/course_service
+      dockerfile: Dockerfile
+    container_name: course-service
+    ports:
+      - "5002:5002"
+    environment:
+      - DATABASE_URL=sqlite:///data/courses.db
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - PORT=5002
+    volumes:
+      - course_db:/app/data
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    networks:
+      - learning-platform-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Learning Service (Backend)
+  learning-service:
+    build:
+      context: ./services/learning_service
+      dockerfile: Dockerfile
+    container_name: learning-service
+    ports:
+      - "5003:5003"
+    environment:
+      - DATABASE_URL=sqlite:///data/learning.db
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - COURSE_SERVICE_URL=http://course-service:5002
+      - PORT=5003
+    volumes:
+      - learning_db:/app/data
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      course-service:
+        condition: service_healthy
+    networks:
+      - learning-platform-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway (Frontend)
+  api-gateway:
+    build:
+      context: ./services/api_gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "5000:5000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - COURSE_SERVICE_URL=http://course-service:5002
+      - LEARNING_SERVICE_URL=http://learning-service:5003
+      - PORT=5000
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      course-service:
+        condition: service_healthy
+      learning-service:
+        condition: service_healthy
+    networks:
+      - learning-platform-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Service (Frontend)
+  frontend-service:
+    build:
+      context: ./services/frontend_service
+      dockerfile: Dockerfile
+    container_name: frontend-service
+    ports:
+      - "8080:8080"
+    environment:
+      - API_GATEWAY_URL=http://api-gateway:5000
+      - PORT=8080
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - learning-platform-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  auth_db:
+    driver: local
+  course_db:
+    driver: local
+  learning_db:
+    driver: local
+
+networks:
+  learning-platform-network:
+    driver: bridge

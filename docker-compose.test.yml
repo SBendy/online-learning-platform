@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  auth-service-test:
+    build:
+      context: ./services/auth_service
+    environment:
+      - DATABASE_URL=sqlite:///:memory:
+      - JWT_SECRET=test-secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  course-service-test:
+    build:
+      context: ./services/course_service
+    environment:
+      - DATABASE_URL=sqlite:///:memory:
+      - AUTH_SERVICE_URL=http://auth-service-test:5001
+    depends_on:
+      - auth-service-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  learning-service-test:
+    build:
+      context: ./services/learning_service
+    environment:
+      - DATABASE_URL=sqlite:///:memory:
+      - AUTH_SERVICE_URL=http://auth-service-test:5001
+      - COURSE_SERVICE_URL=http://course-service-test:5002
+    depends_on:
+      - auth-service-test
+      - course-service-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api-gateway-test:
+    build:
+      context: ./services/api_gateway
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service-test:5001
+      - COURSE_SERVICE_URL=http://course-service-test:5002
+      - LEARNING_SERVICE_URL=http://learning-service-test:5003
+    ports:
+      - "5000:5000"
+    depends_on:
+      - auth-service-test
+      - course-service-test
+      - learning-service-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+

@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learning-platform-config
+  namespace: learning-platform
+data:
+  # Auth Service
+  AUTH_SERVICE_URL: "http://auth-service:5001"
+  JWT_SECRET: "jwt-secret-key-change-in-production"
+  
+  # Course Service
+  COURSE_SERVICE_URL: "http://course-service:5002"
+  
+  # Learning Service
+  LEARNING_SERVICE_URL: "http://learning-service:5003"
+  
+  # API Gateway
+  API_GATEWAY_AUTH_URL: "http://auth-service:5001"
+  API_GATEWAY_COURSE_URL: "http://course-service:5002"
+  API_GATEWAY_LEARNING_URL: "http://learning-service:5003"
+  
+  # Frontend
+  FRONTEND_API_GATEWAY_URL: "http://api-gateway:5000"
+

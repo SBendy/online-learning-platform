@@ -1,0 +1,84 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  IMAGE_PREFIX: learning-platform
+
+before_script:
+  - docker info
+
+build:auth-service:
+  stage: build
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-auth-service:latest ./services/auth_service
+    - docker push $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-auth-service:latest
+  only:
+    - main
+    - master
+    - develop
+
+build:course-service:
+  stage: build
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-course-service:latest ./services/course_service
+    - docker push $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-course-service:latest
+  only:
+    - main
+    - master
+    - develop
+
+build:learning-service:
+  stage: build
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-learning-service:latest ./services/learning_service
+    - docker push $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-learning-service:latest
+  only:
+    - main
+    - master
+    - develop
+
+build:api-gateway:
+  stage: build
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-api-gateway:latest ./services/api_gateway
+    - docker push $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-api-gateway:latest
+  only:
+    - main
+    - master
+    - develop
+
+build:frontend-service:
+  stage: build
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-frontend-service:latest ./services/frontend_service
+    - docker push $CI_REGISTRY_IMAGE/$IMAGE_PREFIX-frontend-service:latest
+  only:
+    - main
+    - master
+    - develop
+
+test:services:
+  stage: test
+  script:
+    - docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+  only:
+    - main
+    - master
+    - develop
+    - merge_requests
+
+deploy:production:
+  stage: deploy
+  script:
+    - echo "Deploy to production server"
+    - echo "Update docker-compose.swarm.yml with new image tags"
+    - echo "Run: docker stack deploy -c docker-compose.swarm.yml learning-platform"
+  only:
+    - main
+    - master
+  when: manual
+

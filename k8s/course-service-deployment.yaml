@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: course-service
+  namespace: learning-platform
+  labels:
+    app: course-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: course-service
+  template:
+    metadata:
+      labels:
+        app: course-service
+        tier: backend
+    spec:
+      containers:
+      - name: course-service
+        image: learning-platform/course-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5002
+          name: http
+        env:
+        - name: DATABASE_URL
+          value: "sqlite:///data/courses.db"
+        - name: AUTH_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: learning-platform-config
+              key: AUTH_SERVICE_URL
+        - name: PORT
+          value: "5002"
+        volumeMounts:
+        - name: course-data
+          mountPath: /app/data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: course-data
+        persistentVolumeClaim:
+          claimName: course-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: course-service
+  namespace: learning-platform
+  labels:
+    app: course-service
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5002
+    targetPort: 5002
+    protocol: TCP
+    name: http
+  selector:
+    app: course-service
+

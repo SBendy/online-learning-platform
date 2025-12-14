@@ -1,0 +1,212 @@
+version: '3.8'
+
+services:
+  # Auth Service (Backend)
+  auth-service:
+    image: learning-platform/auth-service:latest
+    build:
+      context: ./services/auth_service
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - "DATABASE_URL=sqlite:///:memory:"
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - PORT=5001
+    secrets:
+      - jwt_secret
+    # volumes:
+    #   - auth_db:/app/data
+    networks:
+      - learning-platform-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Course Service (Backend)
+  course-service:
+    image: learning-platform/course-service:latest
+    build:
+      context: ./services/course_service
+      dockerfile: Dockerfile
+    ports:
+      - "5002:5002"
+    environment:
+      - "DATABASE_URL=sqlite:///:memory:"
+      - AUTH_SERVICE_URL=http://learning-platform_auth-service:5001
+      - PORT=5002
+    # volumes:
+    #   - course_db:/app/data
+    networks:
+      - learning-platform-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Learning Service (Backend)
+  learning-service:
+    image: learning-platform/learning-service:latest
+    build:
+      context: ./services/learning_service
+      dockerfile: Dockerfile
+    ports:
+      - "5003:5003"
+    environment:
+      - "DATABASE_URL=sqlite:///:memory:"
+      - AUTH_SERVICE_URL=http://learning-platform_auth-service:5001
+      - COURSE_SERVICE_URL=http://learning-platform_course-service:5002
+      - PORT=5003
+    # volumes:
+    #   - learning_db:/app/data
+    networks:
+      - learning-platform-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # API Gateway (Frontend)
+  api-gateway:
+    image: learning-platform/api-gateway:latest
+    build:
+      context: ./services/api_gateway
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - STACK_NAME=learning-platform
+      - AUTH_SERVICE_URL=http://learning-platform_auth-service:5001
+      - COURSE_SERVICE_URL=http://learning-platform_course-service:5002
+      - LEARNING_SERVICE_URL=http://learning-platform_learning-service:5003
+      - PORT=5000
+    networks:
+      - learning-platform-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service (Frontend)
+  frontend-service:
+    image: learning-platform/frontend-service:latest
+    build:
+      context: ./services/frontend_service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - API_GATEWAY_URL=http://localhost:5000
+      - PORT=8080
+    networks:
+      - learning-platform-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+secrets:
+  jwt_secret:
+    external: true
+
+networks:
+  learning-platform-network:
+    driver: overlay
+    attachable: true
+
