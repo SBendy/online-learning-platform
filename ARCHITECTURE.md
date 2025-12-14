@@ -162,9 +162,9 @@ docker-compose up
 
 ### Облачные платформы
 Система готова к развертыванию на:
-- Kubernetes (K8s)
-- AWS ECS/EKS
-- Google Cloud Run/GKE
-- Azure Container Instances/AKS
+- Docker Swarm (локально или multi-host)
+- AWS ECS
+- Google Cloud Run
+- Azure Container Instances
 - Heroku (с Docker)
 

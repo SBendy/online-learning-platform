@@ -18,57 +18,48 @@ docker-compose up --build
 - Автоматический healthcheck
 - Зависимости между сервисами
 
-### 2. Kubernetes (Production)
+### 2. Docker Swarm (Production)
 
-Для продакшн развертывания в Kubernetes кластере.
+Для продакшн развертывания в Docker Swarm кластере.
 
 #### Предварительные требования:
-- Kubernetes кластер (minikube, kind, или облачный)
-- kubectl настроен
-- Docker образы собраны и доступны в registry
+- Docker Swarm инициализирован
+- Docker образы собраны
 
 #### Шаги развертывания:
 
-1. **Сборка образов:**
+1. **Инициализация Swarm (если еще не инициализирован):**
 ```bash
-./build-images.sh
+docker swarm init
 ```
 
-2. **Загрузка в registry (если используется удаленный кластер):**
+2. **Создание JWT секрета:**
 ```bash
-docker tag learning-platform/auth-service:latest <registry>/auth-service:latest
-docker push <registry>/auth-service:latest
-# Повторить для всех сервисов
+echo "jwt-secret-key-change-in-production" | docker secret create jwt_secret -
 ```
 
-3. **Развертывание:**
+3. **Сборка образов:**
 ```bash
-cd k8s
-kubectl apply -f namespace.yaml
-kubectl apply -f configmap.yaml
-kubectl apply -f persistent-volumes.yaml
-kubectl apply -f auth-service-deployment.yaml
-kubectl apply -f course-service-deployment.yaml
-kubectl apply -f learning-service-deployment.yaml
-kubectl apply -f api-gateway-deployment.yaml
-kubectl apply -f frontend-service-deployment.yaml
-kubectl apply -f ingress.yaml
+./build-images.sh  # Linux/Mac
+# или
+build-images.bat   # Windows
 ```
 
-4. **Проверка:**
+4. **Развертывание:**
 ```bash
-kubectl get pods -n learning-platform
-kubectl get services -n learning-platform
+docker stack deploy -c docker-compose.swarm.yml learning-platform
 ```
 
-5. **Доступ к приложению:**
+5. **Проверка:**
 ```bash
-# Port forwarding
-kubectl port-forward -n learning-platform service/frontend-service 8080:80
-
-# Или через LoadBalancer (если поддерживается)
-kubectl get service frontend-service -n learning-platform
+docker stack services learning-platform
+docker service ls
 ```
+
+6. **Доступ к приложению:**
+Приложение будет доступно на http://localhost:8080
+
+Подробнее см. [SWARM_DEPLOYMENT.md](SWARM_DEPLOYMENT.md)
 
 ## Базы данных SQLite
 
@@ -84,17 +75,8 @@ kubectl get service frontend-service -n learning-platform
 - `course_db`
 - `learning_db`
 
-### Kubernetes
-Базы данных хранятся в PersistentVolumes:
-- `auth-pvc` → `auth-pv`
-- `course-pvc` → `course-pv`
-- `learning-pvc` → `learning-pv`
-
-**Важно:** Для hostPath volumes убедитесь, что директории созданы на узлах:
-```bash
-sudo mkdir -p /data/learning-platform/{auth,course,learning}
-sudo chmod 777 /data/learning-platform/{auth,course,learning}
-```
+### Docker Swarm
+Базы данных хранятся в памяти (in-memory SQLite) или в Docker volumes при необходимости.
 
 ## Масштабирование
 
@@ -105,13 +87,13 @@ deploy:
   replicas: 3
 ```
 
-### Kubernetes
+### Docker Swarm
 ```bash
-kubectl scale deployment auth-service --replicas=3 -n learning-platform
-kubectl scale deployment course-service --replicas=3 -n learning-platform
-kubectl scale deployment learning-service --replicas=3 -n learning-platform
-kubectl scale deployment api-gateway --replicas=3 -n learning-platform
-kubectl scale deployment frontend-service --replicas=3 -n learning-platform
+docker service scale learning-platform_auth-service=3
+docker service scale learning-platform_course-service=3
+docker service scale learning-platform_learning-service=3
+docker service scale learning-platform_api-gateway=3
+docker service scale learning-platform_frontend-service=3
 ```
 
 ## Мониторинг
@@ -132,13 +114,13 @@ docker-compose logs -f api-gateway
 docker-compose logs -f frontend-service
 ```
 
-**Kubernetes:**
+**Docker Swarm:**
 ```bash
-kubectl logs -f deployment/auth-service -n learning-platform
-kubectl logs -f deployment/course-service -n learning-platform
-kubectl logs -f deployment/learning-service -n learning-platform
-kubectl logs -f deployment/api-gateway -n learning-platform
-kubectl logs -f deployment/frontend-service -n learning-platform
+docker service logs -f learning-platform_auth-service
+docker service logs -f learning-platform_course-service
+docker service logs -f learning-platform_learning-service
+docker service logs -f learning-platform_api-gateway
+docker service logs -f learning-platform_frontend-service
 ```
 
 ## Обновление приложения
@@ -149,14 +131,14 @@ docker-compose pull
 docker-compose up -d --force-recreate
 ```
 
-### Kubernetes
+### Docker Swarm
 ```bash
 # После обновления образов
-kubectl rollout restart deployment/auth-service -n learning-platform
-kubectl rollout restart deployment/course-service -n learning-platform
-kubectl rollout restart deployment/learning-service -n learning-platform
-kubectl rollout restart deployment/api-gateway -n learning-platform
-kubectl rollout restart deployment/frontend-service -n learning-platform
+docker service update --force --image learning-platform/auth-service:latest learning-platform_auth-service
+docker service update --force --image learning-platform/course-service:latest learning-platform_course-service
+docker service update --force --image learning-platform/learning-service:latest learning-platform_learning-service
+docker service update --force --image learning-platform/api-gateway:latest learning-platform_api-gateway
+docker service update --force --image learning-platform/frontend-service:latest learning-platform_frontend-service
 ```
 
 ## Удаление
@@ -166,9 +148,9 @@ kubectl rollout restart deployment/frontend-service -n learning-platform
 docker-compose down -v  # -v удаляет volumes
 ```
 
-### Kubernetes
+### Docker Swarm
 ```bash
-kubectl delete namespace learning-platform
+docker stack rm learning-platform
 ```
 
 ## Переменные окружения
@@ -207,9 +189,9 @@ kubectl delete namespace learning-platform
 - Убедитесь, что все сервисы в одной сети
 - Проверьте имена сервисов в переменных окружения
 
-**Kubernetes:**
-- Убедитесь, что все сервисы в одном namespace
-- Проверьте DNS имена сервисов: `<service-name>.<namespace>.svc.cluster.local`
+**Docker Swarm:**
+- Убедитесь, что все сервисы в одном stack
+- Проверьте имена сервисов: `learning-platform_<service-name>`
 
 ### Проблема: База данных не сохраняется
 
@@ -217,9 +199,9 @@ kubectl delete namespace learning-platform
 - Проверьте, что volumes созданы: `docker volume ls`
 - Убедитесь, что путь к БД правильный: `/app/data/`
 
-**Kubernetes:**
-- Проверьте статус PVC: `kubectl get pvc -n learning-platform`
-- Убедитесь, что PersistentVolume создан и доступен
+**Docker Swarm:**
+- Проверьте статус сервисов: `docker service ls`
+- Убедитесь, что все реплики запущены: `docker service ps <service-name>`
 
 ### Проблема: Health checks не проходят
 

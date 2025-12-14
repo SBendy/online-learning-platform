@@ -10,13 +10,13 @@ services:
     ports:
       - "5001:5001"
     environment:
-      - "DATABASE_URL=sqlite:///:memory:"
+      - "DATABASE_URL=sqlite:////app/data/auth.db"
       - JWT_SECRET_FILE=/run/secrets/jwt_secret
       - PORT=5001
     secrets:
       - jwt_secret
-    # volumes:
-    #   - auth_db:/app/data
+    volumes:
+      - auth_db:/app/data
     networks:
       - learning-platform-network
     deploy:
@@ -52,11 +52,11 @@ services:
     ports:
       - "5002:5002"
     environment:
-      - "DATABASE_URL=sqlite:///:memory:"
+      - "DATABASE_URL=sqlite:////app/data/courses.db"
       - AUTH_SERVICE_URL=http://learning-platform_auth-service:5001
       - PORT=5002
-    # volumes:
-    #   - course_db:/app/data
+    volumes:
+      - course_db:/app/data
     networks:
       - learning-platform-network
     deploy:
@@ -92,12 +92,12 @@ services:
     ports:
       - "5003:5003"
     environment:
-      - "DATABASE_URL=sqlite:///:memory:"
+      - "DATABASE_URL=sqlite:////app/data/learning.db"
       - AUTH_SERVICE_URL=http://learning-platform_auth-service:5001
       - COURSE_SERVICE_URL=http://learning-platform_course-service:5002
       - PORT=5003
-    # volumes:
-    #   - learning_db:/app/data
+    volumes:
+      - learning_db:/app/data
     networks:
       - learning-platform-network
     deploy:
@@ -204,6 +204,14 @@ services:
 secrets:
   jwt_secret:
     external: true
+
+volumes:
+  auth_db:
+    driver: local
+  course_db:
+    driver: local
+  learning_db:
+    driver: local
 
 networks:
   learning-platform-network:

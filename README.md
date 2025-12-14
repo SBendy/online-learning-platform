@@ -22,9 +22,8 @@
 - SQLAlchemy - ORM
 - JWT - аутентификация
 - Docker & Docker Compose - контейнеризация
-- Docker Swarm - оркестрация контейнеров (рекомендуется)
-- Kubernetes - оркестрация контейнеров (альтернатива)
-- SQLite - база данных (хранится в Docker volumes или PersistentVolumes)
+- Docker Swarm - оркестрация контейнеров
+- SQLite - база данных (хранится в памяти или Docker volumes)
 
 ## Быстрый старт
 
@@ -36,46 +35,7 @@ docker-compose up --build
 
 Приложение будет доступно по адресу: http://localhost:8080
 
-### Вариант 2: Kubernetes (для продакшена)
-
-**⚠️ Важно:** Перед развертыванием убедитесь, что Kubernetes кластер запущен!
-
-```bash
-# Проверка подключения к кластеру
-cd k8s
-./check-cluster.sh  # Linux/Mac
-# или
-check-cluster.bat   # Windows
-
-# Если кластер не настроен, см. k8s/setup-local-cluster.md
-
-# 1. Сборка образов
-./build-images.sh
-
-# 2. Развертывание в Kubernetes
-cd k8s
-./deploy.sh
-
-# Или вручную:
-kubectl apply -f namespace.yaml
-kubectl apply -f configmap.yaml
-kubectl apply -f persistent-volumes.yaml
-kubectl apply -f auth-service-deployment.yaml
-kubectl apply -f course-service-deployment.yaml
-kubectl apply -f learning-service-deployment.yaml
-kubectl apply -f api-gateway-deployment.yaml
-kubectl apply -f frontend-service-deployment.yaml
-kubectl apply -f ingress.yaml
-
-# 3. Доступ к приложению
-kubectl port-forward -n learning-platform service/frontend-service 8080:80
-```
-
-**Если кластер не настроен:** Используйте Docker Compose (Вариант 1) или настройте локальный кластер (см. [k8s/setup-local-cluster.md](k8s/setup-local-cluster.md))
-
-Подробнее см. [DEPLOYMENT.md](DEPLOYMENT.md) и [k8s/README.md](k8s/README.md)
-
-### Вариант 3: Docker Swarm (для продакшена)
+### Вариант 2: Docker Swarm (для продакшена)
 
 **⚠️ Важно:** Перед развертыванием убедитесь, что Docker Swarm инициализирован!
 
@@ -122,7 +82,7 @@ docker stack rm learning-platform
 
 Подробнее см. [SWARM_DEPLOYMENT.md](SWARM_DEPLOYMENT.md)
 
-### Вариант 4: Локальный запуск (без Docker)
+### Вариант 3: Локальный запуск (без Docker)
 
 1. Запустите сервисы в отдельных терминалах:
 
@@ -240,19 +200,13 @@ Authorization: Bearer <token>
   - Локальный Swarm кластер
   - Multi-host Swarm кластер
   - Docker Enterprise
-- **Kubernetes кластеры:**
-  - AWS EKS
-  - Google Cloud GKE
-  - Azure AKS
-  - Minikube (локально)
-  - Kind (локально)
 - **Docker платформы:**
   - AWS ECS
   - Google Cloud Run
   - Azure Container Instances
   - Heroku (с Docker)
 
-Подробные инструкции см. в [DEPLOYMENT.md](DEPLOYMENT.md)
+Подробные инструкции см. в [DEPLOYMENT.md](DEPLOYMENT.md) и [SWARM_DEPLOYMENT.md](SWARM_DEPLOYMENT.md)
 
 ### Переменные окружения для продакшена:
 
@@ -274,15 +228,6 @@ docker service scale learning-platform_api-gateway=3
 docker service scale learning-platform_frontend-service=3
 ```
 
-### Kubernetes
-```bash
-kubectl scale deployment auth-service --replicas=3 -n learning-platform
-kubectl scale deployment course-service --replicas=3 -n learning-platform
-kubectl scale deployment learning-service --replicas=3 -n learning-platform
-kubectl scale deployment api-gateway --replicas=3 -n learning-platform
-kubectl scale deployment frontend-service --replicas=3 -n learning-platform
-```
-
 Каждый микросервис может масштабироваться независимо.
 
 ## Мониторинг
@@ -302,7 +247,69 @@ docker-compose logs -f [service-name]
 docker service logs -f learning-platform_[service-name]
 ```
 
-**Kubernetes:**
-```bash
-kubectl logs -f deployment/[service-name] -n learning-platform
+## Очистка данных
+
+Для очистки всех данных (пользователи, курсы, уроки) используйте готовые скрипты:
+
+### Windows (PowerShell)
+
+**Очистка только данных (stack продолжает работать):**
+```powershell
+.\clear-data.ps1
 ```
+
+**Полная очистка (данные + stack):**
+```powershell
+.\clear-all.ps1
+```
+
+### Linux/Mac
+
+**Очистка только данных:**
+```bash
+chmod +x clear-data.sh
+./clear-data.sh
+```
+
+**Полная очистка:**
+```bash
+chmod +x clear-all.sh
+./clear-all.sh
+```
+
+### Ручная очистка
+
+Если нужно очистить данные вручную:
+
+```bash
+# 1. Остановить stack
+docker stack rm learning-platform
+
+# 2. Подождать завершения (10-15 секунд)
+sleep 10
+
+# 3. Удалить volumes с базами данных
+docker volume rm learning-platform_auth_db
+docker volume rm learning-platform_course_db
+docker volume rm learning-platform_learning_db
+
+# 4. Очистить неиспользуемые volumes
+docker volume prune -f
+
+# 5. Развернуть заново
+docker stack deploy -c docker-compose.swarm.yml learning-platform
+
+# 6. Инициализировать тестовые данные (опционально)
+.\init-test-data.ps1  # Windows
+# или
+./init-test-data.ps1  # Linux/Mac (если есть)
+```
+
+**⚠️ Внимание:** Очистка данных удалит:
+- Всех пользователей и логины
+- Все курсы
+- Все уроки и записи на курсы
+- Весь прогресс обучения
+
+После очистки базы данных будут пустыми, и потребуется повторная инициализация тестовых данных.
+

@@ -31,6 +31,7 @@ class Course(db.Model):
     creator_id = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_published = db.Column(db.Boolean, default=False)
+    banner_image = db.Column(db.Text)  # Base64 изображение баннера
 
 
 def validate_token(token):
@@ -131,7 +132,8 @@ def get_courses():
         'creator_id': course.creator_id,
         'creator': creators_info.get(course.creator_id, 'Неизвестно'),
         'created_at': course.created_at.isoformat(),
-        'is_published': course.is_published
+        'is_published': course.is_published,
+        'banner_image': course.banner_image
     } for course in courses]), 200
 
 
@@ -154,7 +156,8 @@ def get_my_courses(current_user=None):
         'description': course.description,
         'creator_id': course.creator_id,
         'created_at': course.created_at.isoformat(),
-        'is_published': course.is_published
+        'is_published': course.is_published,
+        'banner_image': course.banner_image
     } for course in courses]), 200
 
 
@@ -178,6 +181,7 @@ def create_course(current_user=None):
         'description': course.description,
         'creator_id': course.creator_id,
         'is_published': course.is_published,
+        'banner_image': course.banner_image,
         'message': 'Курс успешно создан и опубликован'
     }), 201
 
@@ -218,7 +222,8 @@ def get_course(course_id):
         'creator_id': course.creator_id,
         'creator': creator_name,
         'created_at': course.created_at.isoformat(),
-        'is_published': course.is_published
+        'is_published': course.is_published,
+        'banner_image': course.banner_image
     }), 200
 
 
@@ -238,6 +243,8 @@ def update_course(course_id, current_user=None):
         course.description = data['description']
     if 'is_published' in data:
         course.is_published = data['is_published']
+    if 'banner_image' in data:
+        course.banner_image = data['banner_image']
     
     db.session.commit()
     
@@ -245,6 +252,7 @@ def update_course(course_id, current_user=None):
         'id': course.id,
         'title': course.title,
         'description': course.description,
+        'banner_image': course.banner_image,
         'message': 'Курс успешно обновлен'
     }), 200
 

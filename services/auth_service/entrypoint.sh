@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
-# Убедиться, что /app доступен для записи
-echo "Checking /app write permissions..."
-touch /app/.test_write && rm /app/.test_write && echo "✓ /app is writable" || echo "⚠ Warning: /app may not be writable"
+# Создать директорию для базы данных
+mkdir -p /app/data
+chmod 777 /app/data
+
+# Убедиться, что /app/data доступен для записи
+echo "Checking /app/data write permissions..."
+touch /app/data/.test_write && rm /app/data/.test_write && echo "✓ /app/data is writable" || echo "⚠ Warning: /app/data may not be writable"
 
 # Запустить приложение
 echo "Starting application..."
